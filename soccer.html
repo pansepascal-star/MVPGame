@@ -12,8 +12,7 @@
     <main class="soccer-shell">
       <header class="soccer-header">
         <a class="back-link" href="index.html">← 残響の継承者へ</a>
-        <p class="eyebrow">ONE ON ONE 
-          / STREET MATCH</p>
+        <p class="eyebrow">ONE ON ONE / STREET MATCH</p>
         <h1>1v1 <span>SOCCER</span></h1>
         <p class="subtitle">抜いて、決めろ。</p>
       </header>
@@ -21,17 +20,21 @@
       <section class="match-panel" aria-label="サッカーの試合">
         <div class="scoreboard" aria-label="スコア">
           <div class="team player-team"><span class="team-color"></span><span>YOU</span><strong id="player-score">0</strong></div>
-          <div class="match-clock"><span>TIME</span><strong id="match-time">60</strong></div>
+          <div class="match-clock">
+            <span>TIME</span>
+            <strong id="match-time">60</strong>
+            <span class="possession-state" id="possession-state" data-owner="loose">ボール：ルーズ</span>
+          </div>
           <div class="team cpu-team"><strong id="cpu-score">0</strong><span>CPU</span><span class="team-color"></span></div>
         </div>
         <div class="canvas-wrap">
-          <canvas id="soccer-field" width="960" height="580" tabindex="0" aria-label="サッカー場。WASDまたは矢印キーで移動、スペースでシュート">
+          <canvas id="soccer-field" width="960" height="580" tabindex="0" aria-label="サイド視点のサッカー場。WASDまたは矢印キーで移動し、ボールをキープしてスペースでシュート">
             このブラウザーはCanvasに対応していません。
           </canvas>
           <p class="canvas-status" id="game-status" aria-live="polite">キックオフを押して試合開始！</p>
         </div>
         <div class="match-actions">
-          <p><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / <kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd> 移動 <span>・</span> <kbd>SPACE</kbd> シュート</p>
+          <p><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / <kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd> 移動・奥手前 <span>・</span> 接近で自動ドリブル <span>・</span> <kbd>SPACE</kbd> シュート</p>
           <button type="button" class="kickoff-button" id="kickoff-button">キックオフ！</button>
         </div>
       </section>

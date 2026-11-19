@@ -44,6 +44,9 @@ h1 span { color: var(--green); }
 .match-clock { display: grid; justify-items: center; gap: 0; color: #e3e5dc; font-family: "Barlow Condensed", sans-serif; }
 .match-clock span { color: #96a398; font-size: 8px; font-weight: 800; letter-spacing: .16em; }
 .match-clock strong { font-size: 23px; line-height: 1; }
+.match-clock .possession-state { margin-top: 3px; color: #c4d2c6; font-family: "Noto Sans JP", sans-serif; font-size: 8px; font-weight: 700; letter-spacing: 0; white-space: nowrap; }
+.possession-state[data-owner="player"] { color: #a7f4ad; }
+.possession-state[data-owner="cpu"] { color: #ffb19a; }
 
 .canvas-wrap { position: relative; background: #153820; }
 #soccer-field { display: block; width: 100%; height: auto; aspect-ratio: 48 / 29; outline: none; touch-action: none; }

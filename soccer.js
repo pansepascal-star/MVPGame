@@ -4,23 +4,41 @@ const playerScoreElement = document.querySelector("#player-score");
 const cpuScoreElement = document.querySelector("#cpu-score");
 const timeElement = document.querySelector("#match-time");
 const statusElement = document.querySelector("#game-status");
+const possessionElement = document.querySelector("#possession-state");
 const kickoffButton = document.querySelector("#kickoff-button");
 const shootButton = document.querySelector("#shoot-button");
 const field = { left: 42, right: 918, top: 42, bottom: 538, goalTop: 220, goalBottom: 360 };
 const keys = new Set();
-const player = { x: 175, y: 290, radius: 24, speed: 265, facingX: 1, facingY: 0 };
-const cpu = { x: 785, y: 290, radius: 24, speed: 205, cooldown: 0 };
-const ball = { x: 480, y: 290, radius: 11, vx: 0, vy: 0 };
+const player = {
+  x: 420, y: 290, radius: 20, speed: 285,
+  facingX: 1, facingY: 0, moving: false, tackleCooldown: 0,
+};
+const cpu = {
+  x: 540, y: 290, radius: 20, speed: 235,
+  facingX: -1, facingY: 0, moving: false, tackleCooldown: 0,
+  shotCooldown: 0, thinkCooldown: 0, targetX: 540, targetY: 290,
+};
+const ball = { x: 480, y: 290, radius: 10, vx: 0, vy: 0 };
 
 let playerScore = 0;
 let cpuScore = 0;
 let timeLeft = 60;
 let mode = "ready";
+let holder = null;
 let goalPause = 0;
 let previousFrame = 0;
+let gameTime = 0;
 
 function setStatus(message) {
   statusElement.textContent = message;
+}
+
+function setHolder(nextHolder) {
+  holder = nextHolder;
+  possessionElement.textContent = holder === "player"
+    ? "ボール：YOU"
+    : holder === "cpu" ? "ボール：CPU" : "ボール：ルーズ";
+  possessionElement.dataset.owner = holder ?? "loose";
 }
 
 function formatTime(seconds) {
@@ -34,17 +52,27 @@ function updateScoreboard() {
 }
 
 function resetPositions() {
-  player.x = 175;
+  player.x = 420;
   player.y = 290;
   player.facingX = 1;
   player.facingY = 0;
-  cpu.x = 785;
+  player.moving = false;
+  player.tackleCooldown = 0;
+  cpu.x = 540;
   cpu.y = 290;
-  cpu.cooldown = 0.5;
+  cpu.facingX = -1;
+  cpu.facingY = 0;
+  cpu.moving = false;
+  cpu.tackleCooldown = 0;
+  cpu.shotCooldown = 0.65;
+  cpu.thinkCooldown = 0;
+  cpu.targetX = cpu.x;
+  cpu.targetY = cpu.y;
   ball.x = 480;
   ball.y = 290;
   ball.vx = 0;
   ball.vy = 0;
+  setHolder(null);
 }
 
 function resetMatch() {
@@ -74,7 +102,7 @@ function startMatch() {
   if (mode === "ready") {
     mode = "playing";
     kickoffButton.textContent = "試合をリセット";
-    setStatus("試合開始！ ボールを奪ってシュート！");
+    setStatus("試合開始！ ボールに近づくと自動でドリブルします。");
     canvas.focus({ preventScroll: true });
   } else {
     resetMatch();
@@ -85,88 +113,208 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
-function placeBallAheadOf(person, directionX, directionY) {
-  const forwardOffset = (ball.x - person.x) * directionX + (ball.y - person.y) * directionY;
-  const minimumOffset = person.radius + ball.radius + 2;
-  if (forwardOffset >= minimumOffset) return;
-  ball.x = person.x + directionX * minimumOffset;
-  ball.y = person.y + directionY * minimumOffset;
+function distanceBetween(first, second) {
+  return Math.hypot(first.x - second.x, first.y - second.y);
 }
 
-function shoot() {
-  if (mode !== "playing" || goalPause > 0) return;
-  const distance = Math.hypot(ball.x - player.x, ball.y - player.y);
-  if (distance > player.radius + ball.radius + 22) {
-    setStatus("ボールに近づいてからシュート！");
-    return;
-  }
-  const aimOffset = keys.has("up") ? -72 : keys.has("down") ? 72 : 0;
-  const targetY = clamp(ball.y + (290 - ball.y) * 0.24 + aimOffset, field.goalTop + 18, field.goalBottom - 18);
-  const dx = field.right + 45 - ball.x;
-  const dy = targetY - ball.y;
-  const length = Math.hypot(dx, dy) || 1;
-  const directionX = dx / length;
-  const directionY = dy / length;
-  placeBallAheadOf(player, directionX, directionY);
-  ball.vx = directionX * 650 + player.facingX * 28;
-  ball.vy = directionY * 650 + player.facingY * 28;
-  setStatus("シュート！");
+function moveToward(person, targetX, targetY, dt, speed = person.speed) {
+  const dx = targetX - person.x;
+  const dy = targetY - person.y;
+  const distance = Math.hypot(dx, dy);
+  person.moving = distance > 2;
+  if (!person.moving) return;
+  const moveX = dx / distance;
+  const moveY = dy / distance;
+  const step = Math.min(distance, speed * dt);
+  person.x = clamp(person.x + moveX * step, field.left + person.radius, field.right - person.radius);
+  person.y = clamp(person.y + moveY * step, field.top + person.radius, field.bottom - person.radius);
+  person.facingX = moveX;
+  person.facingY = moveY;
 }
 
 function movePlayer(dt) {
   const dx = Number(keys.has("right")) - Number(keys.has("left"));
   const dy = Number(keys.has("down")) - Number(keys.has("up"));
   const length = Math.hypot(dx, dy);
+  player.moving = length > 0;
   if (!length) return;
   const moveX = dx / length;
   const moveY = dy / length;
-  player.x = clamp(player.x + moveX * player.speed * dt, field.left + player.radius, field.right - player.radius);
-  player.y = clamp(player.y + moveY * player.speed * dt, field.top + player.radius, field.bottom - player.radius);
+  const speed = holder === "player" ? player.speed * 0.94 : player.speed;
+  player.x = clamp(player.x + moveX * speed * dt, field.left + player.radius, field.right - player.radius);
+  player.y = clamp(player.y + moveY * speed * dt, field.top + player.radius, field.bottom - player.radius);
   player.facingX = moveX;
   player.facingY = moveY;
 }
 
+function syncHeldBall(person) {
+  const offset = person.radius + ball.radius + 3;
+  ball.x = clamp(person.x + person.facingX * offset, field.left - 4, field.right + 4);
+  ball.y = clamp(person.y + person.facingY * offset, field.top + 4, field.bottom - 4);
+  ball.vx = 0;
+  ball.vy = 0;
+}
+
+function segmentDistance(point, start, end) {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const lengthSquared = dx * dx + dy * dy || 1;
+  const t = clamp(((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared, 0, 1);
+  return Math.hypot(point.x - (start.x + dx * t), point.y - (start.y + dy * t));
+}
+
+function chooseShotTargetY(shooter, defender, goalX) {
+  const candidates = [
+    field.goalTop + 18,
+    field.goalTop + 42,
+    (field.goalTop + field.goalBottom) / 2,
+    field.goalBottom - 42,
+    field.goalBottom - 18,
+  ];
+  return candidates.reduce((best, targetY) => {
+    const clearance = segmentDistance(defender, shooter, { x: goalX, y: targetY });
+    return clearance > best.clearance ? { y: targetY, clearance } : best;
+  }, { y: candidates[0], clearance: -1 }).y;
+}
+
+function shoot() {
+  if (mode !== "playing" || goalPause > 0) return;
+  if (holder !== "player") {
+    if (distanceBetween(player, ball) > player.radius + ball.radius + 24) {
+      setStatus("ボールに近づくと自動でキープできます！");
+      return;
+    }
+    setHolder("player");
+    syncHeldBall(player);
+  }
+  const aimOffset = keys.has("up") ? -58 : keys.has("down") ? 58 : 0;
+  const targetY = aimOffset
+    ? clamp(ball.y + aimOffset, field.goalTop + 14, field.goalBottom - 14)
+    : (field.goalTop + field.goalBottom) / 2;
+  const targetX = field.right + 38;
+  const dx = targetX - ball.x;
+  const dy = targetY - ball.y;
+  const length = Math.hypot(dx, dy) || 1;
+  setHolder(null);
+  ball.vx = (dx / length) * 690 + player.facingX * 28;
+  ball.vy = (dy / length) * 690 + player.facingY * 28;
+  setStatus("シュート！");
+}
+
+function shootForCpu() {
+  if (cpu.shotCooldown > 0) return;
+  syncHeldBall(cpu);
+  const targetX = field.left - 38;
+  const targetY = clamp(
+    chooseShotTargetY(cpu, player, targetX) + Math.sin(gameTime * 5.7) * 55,
+    field.goalTop - 8,
+    field.goalBottom + 8,
+  );
+  const dx = targetX - ball.x;
+  const dy = targetY - ball.y;
+  const length = Math.hypot(dx, dy) || 1;
+  setHolder(null);
+  ball.vx = (dx / length) * 590;
+  ball.vy = (dy / length) * 590;
+  cpu.shotCooldown = 1.15;
+  setStatus("CPUがシュート！");
+}
+
+function thinkCpu() {
+  if (holder === "cpu") {
+    cpu.targetX = Math.max(field.left + 90, cpu.x - 55);
+    cpu.targetY = clamp(
+      chooseShotTargetY(cpu, player, field.left - 38),
+      field.goalTop + 20,
+      field.goalBottom - 20,
+    );
+    if (cpu.x < field.left + 250 || distanceBetween(cpu, player) < 76) shootForCpu();
+    return;
+  }
+
+  if (holder === "player") {
+    const approachX = clamp(player.x + 38, field.left + 34, field.right - 34);
+    cpu.targetX = approachX;
+    cpu.targetY = clamp(player.y + (290 - player.y) * 0.12, field.top + 24, field.bottom - 24);
+    return;
+  }
+
+  const lead = 0.24;
+  const predictedX = clamp(ball.x + ball.vx * lead, field.left + 24, field.right - 24);
+  const predictedY = clamp(ball.y + ball.vy * lead, field.top + 24, field.bottom - 24);
+  const cpuDistance = Math.hypot(predictedX - cpu.x, predictedY - cpu.y);
+  const playerDistance = Math.hypot(predictedX - player.x, predictedY - player.y);
+  if (playerDistance + 24 < cpuDistance && predictedX > canvas.width * 0.52) {
+    cpu.targetX = clamp(predictedX + 86, field.left + 32, field.right - 32);
+    cpu.targetY = clamp(predictedY + (290 - predictedY) * 0.16, field.top + 24, field.bottom - 24);
+  } else {
+    cpu.targetX = predictedX;
+    cpu.targetY = predictedY;
+  }
+}
+
 function moveCpu(dt) {
-  const dx = ball.x - cpu.x;
-  const dy = ball.y - cpu.y;
-  const distance = Math.hypot(dx, dy);
-  cpu.cooldown = Math.max(0, cpu.cooldown - dt);
-  if (distance < 1) return;
-  const speed = distance < 110 ? cpu.speed * 0.72 : cpu.speed;
-  cpu.x = clamp(cpu.x + (dx / distance) * speed * dt, field.left + cpu.radius, field.right - cpu.radius);
-  cpu.y = clamp(cpu.y + (dy / distance) * speed * dt, field.top + cpu.radius, field.bottom - cpu.radius);
-  if (distance <= cpu.radius + ball.radius + 15 && cpu.cooldown === 0) {
-    const targetY = clamp(ball.y + (290 - ball.y) * 0.18, field.goalTop + 16, field.goalBottom - 16);
-    const shotX = field.left - 45 - ball.x;
-    const shotY = targetY - ball.y;
-    const shotLength = Math.hypot(shotX, shotY) || 1;
-    const directionX = shotX / shotLength;
-    const directionY = shotY / shotLength;
-    placeBallAheadOf(cpu, directionX, directionY);
-    ball.vx = directionX * 475;
-    ball.vy = directionY * 475;
-    cpu.cooldown = 0.9;
-    setStatus("CPUのシュート！");
+  cpu.shotCooldown = Math.max(0, cpu.shotCooldown - dt);
+  cpu.tackleCooldown = Math.max(0, cpu.tackleCooldown - dt);
+  cpu.thinkCooldown -= dt;
+  if (cpu.thinkCooldown <= 0) {
+    thinkCpu();
+    cpu.thinkCooldown = 0.22;
+  }
+
+  const speed = holder === "cpu" ? cpu.speed * 0.84 : cpu.speed;
+  moveToward(cpu, cpu.targetX, cpu.targetY, dt, speed);
+
+  if (holder === "player" && cpu.tackleCooldown === 0 && distanceBetween(cpu, player) < 43) {
+    setHolder("cpu");
+    cpu.tackleCooldown = 1.35;
+    cpu.thinkCooldown = 0;
+    setStatus("CPUにボールを奪われた！");
+  }
+}
+
+function acquireLooseBall() {
+  if (holder !== null) return;
+  const playerDistance = distanceBetween(player, ball);
+  const cpuDistance = distanceBetween(cpu, ball);
+  const pickupDistance = player.radius + ball.radius + 22;
+  if (playerDistance <= pickupDistance && playerDistance <= cpuDistance) {
+    setHolder("player");
+    setStatus("ボールキープ！ ドリブルで抜いてシュート！");
+  } else if (cpuDistance <= pickupDistance) {
+    setHolder("cpu");
+    cpu.thinkCooldown = 0;
+    setStatus("CPUがボールをキープ！");
+  }
+}
+
+function tryPlayerTackle() {
+  if (holder !== "cpu" || player.tackleCooldown > 0 || !player.moving) return;
+  if (distanceBetween(player, cpu) < 43) {
+    setHolder("player");
+    player.tackleCooldown = 0.75;
+    cpu.tackleCooldown = 0.9;
+    setStatus("ナイスボール奪取！");
   }
 }
 
 function resolvePlayerContact() {
-  for (const person of [player, cpu]) {
-    const dx = ball.x - person.x;
-    const dy = ball.y - person.y;
-    const distance = Math.hypot(dx, dy);
-    const minimumDistance = person.radius + ball.radius;
-    if (distance === 0 || distance >= minimumDistance) continue;
-    const nx = dx / distance;
-    const ny = dy / distance;
-    ball.x = person.x + nx * minimumDistance;
-    ball.y = person.y + ny * minimumDistance;
-    ball.vx += nx * 22;
-    ball.vy += ny * 22;
-  }
+  const dx = cpu.x - player.x;
+  const dy = cpu.y - player.y;
+  const distance = Math.hypot(dx, dy);
+  const minimumDistance = player.radius + cpu.radius;
+  if (distance === 0 || distance >= minimumDistance) return;
+  const nx = dx / distance;
+  const ny = dy / distance;
+  const push = (minimumDistance - distance) / 2;
+  player.x = clamp(player.x - nx * push, field.left + player.radius, field.right - player.radius);
+  player.y = clamp(player.y - ny * push, field.top + player.radius, field.bottom - player.radius);
+  cpu.x = clamp(cpu.x + nx * push, field.left + cpu.radius, field.right - cpu.radius);
+  cpu.y = clamp(cpu.y + ny * push, field.top + cpu.radius, field.bottom - cpu.radius);
 }
 
 function scoreGoal(forPlayer) {
+  setHolder(null);
   if (forPlayer) {
     playerScore += 1;
     setStatus("GOAL！ ナイスシュート！");
@@ -179,6 +327,7 @@ function scoreGoal(forPlayer) {
 }
 
 function updateBall(dt) {
+  if (holder !== null) return;
   ball.x += ball.vx * dt;
   ball.y += ball.vy * dt;
   const friction = 0.986 ** (dt * 60);
@@ -209,6 +358,7 @@ function updateBall(dt) {
 }
 
 function update(dt) {
+  gameTime += dt;
   if (mode === "goalPause") {
     goalPause -= dt;
     if (goalPause <= 0) {
@@ -227,146 +377,323 @@ function update(dt) {
     endMatch();
     return;
   }
+  player.tackleCooldown = Math.max(0, player.tackleCooldown - dt);
   movePlayer(dt);
   moveCpu(dt);
-  updateBall(dt);
-  if (goalPause > 0) {
-    mode = "goalPause";
-    return;
+  tryPlayerTackle();
+  if (holder === "player") syncHeldBall(player);
+  else if (holder === "cpu") syncHeldBall(cpu);
+  else {
+    updateBall(dt);
+    if (goalPause > 0) {
+      mode = "goalPause";
+      return;
+    }
+    acquireLooseBall();
   }
   resolvePlayerContact();
-  const playerGap = Math.hypot(cpu.x - player.x, cpu.y - player.y);
-  if (playerGap < player.radius + cpu.radius) {
-    const angle = Math.atan2(cpu.y - player.y, cpu.x - player.x);
-    const push = (player.radius + cpu.radius - playerGap) / 2;
-    player.x = clamp(player.x - Math.cos(angle) * push, field.left + player.radius, field.right - player.radius);
-    player.y = clamp(player.y - Math.sin(angle) * push, field.top + player.radius, field.bottom - player.radius);
-    cpu.x = clamp(cpu.x + Math.cos(angle) * push, field.left + cpu.radius, field.right - cpu.radius);
-    cpu.y = clamp(cpu.y + Math.sin(angle) * push, field.top + cpu.radius, field.bottom - cpu.radius);
-  }
+  if (holder === "player") syncHeldBall(player);
+  else if (holder === "cpu") syncHeldBall(cpu);
 }
 
-function drawGoal(x, direction) {
-  context.fillStyle = "#e7f1df";
-  context.fillRect(x, field.goalTop, direction * 34, field.goalBottom - field.goalTop);
-  context.strokeStyle = "#f4f7ed";
-  context.lineWidth = 3;
-  context.strokeRect(x, field.goalTop, direction * 34, field.goalBottom - field.goalTop);
-  context.lineWidth = 1;
-  context.strokeStyle = "#a9b5a5";
-  for (let y = field.goalTop + 20; y < field.goalBottom; y += 20) {
-    context.beginPath();
-    context.moveTo(x, y);
-    context.lineTo(x + direction * 34, y);
-    context.stroke();
-  }
-  for (let offset = 10; offset < 34; offset += 10) {
-    context.beginPath();
-    context.moveTo(x + direction * offset, field.goalTop);
-    context.lineTo(x + direction * offset, field.goalBottom);
-    context.stroke();
-  }
+function project(x, y) {
+  const depth = clamp((y - field.top) / (field.bottom - field.top), 0, 1);
+  const width = 760 + depth * 150;
+  const normalizedX = (x - field.left) / (field.right - field.left);
+  return {
+    x: canvas.width / 2 + (normalizedX - 0.5) * width,
+    y: 184 + depth * 334,
+    scale: 0.82 + depth * 0.25,
+  };
 }
 
-function drawField() {
-  context.fillStyle = "#14271b";
+function drawStadium() {
+  const sky = context.createLinearGradient(0, 0, 0, 192);
+  sky.addColorStop(0, "#111a24");
+  sky.addColorStop(0.7, "#34404a");
+  sky.addColorStop(1, "#76826e");
+  context.fillStyle = sky;
   context.fillRect(0, 0, canvas.width, canvas.height);
-  context.fillStyle = "#27733c";
-  context.fillRect(field.left, field.top, field.right - field.left, field.bottom - field.top);
-  const stripeWidth = (field.right - field.left) / 10;
-  for (let index = 0; index < 10; index += 1) {
-    if (index % 2 === 0) continue;
-    context.fillStyle = "#ffffff0b";
-    context.fillRect(field.left + index * stripeWidth, field.top, stripeWidth, field.bottom - field.top);
-  }
-  context.strokeStyle = "#e5f1dcbb";
-  context.lineWidth = 3;
-  context.strokeRect(field.left, field.top, field.right - field.left, field.bottom - field.top);
-  context.beginPath();
-  context.moveTo(canvas.width / 2, field.top);
-  context.lineTo(canvas.width / 2, field.bottom);
-  context.stroke();
-  context.beginPath();
-  context.arc(canvas.width / 2, canvas.height / 2, 76, 0, Math.PI * 2);
-  context.stroke();
-  context.fillStyle = "#e5f1dc";
-  context.beginPath();
-  context.arc(canvas.width / 2, canvas.height / 2, 4, 0, Math.PI * 2);
-  context.fill();
-  context.strokeRect(field.left, 184, 110, 212);
-  context.strokeRect(field.right - 110, 184, 110, 212);
-  context.strokeRect(field.left, 230, 42, 120);
-  context.strokeRect(field.right - 42, 230, 42, 120);
-  drawGoal(field.left, -1);
-  drawGoal(field.right, 1);
-}
 
-function drawPlayer(person, color, number, facingX, facingY) {
-  context.save();
-  context.shadowColor = "#09130dcc";
-  context.shadowBlur = 12;
-  context.shadowOffsetY = 5;
-  context.fillStyle = color;
+  context.fillStyle = "#18232b";
   context.beginPath();
-  context.arc(person.x, person.y, person.radius, 0, Math.PI * 2);
+  context.moveTo(0, 54);
+  context.lineTo(canvas.width, 54);
+  context.lineTo(canvas.width, 177);
+  context.lineTo(0, 177);
+  context.closePath();
   context.fill();
-  context.shadowColor = "transparent";
-  context.lineWidth = 3;
-  context.strokeStyle = "#f5f7ee";
-  context.stroke();
-  context.fillStyle = "#f8f6ec";
+  const crowdColors = ["#d0b38b", "#94b6a2", "#7790a3", "#d27d62", "#ded8bc"];
+  for (let row = 0; row < 5; row += 1) {
+    for (let column = 0; column < 48; column += 1) {
+      const colorIndex = (row * 17 + column * 7) % crowdColors.length;
+      context.fillStyle = crowdColors[colorIndex];
+      context.globalAlpha = 0.45 + ((row + column) % 4) * 0.1;
+      context.fillRect(7 + column * 20, 72 + row * 17, 7, 5);
+    }
+  }
+  context.globalAlpha = 1;
+  context.fillStyle = "#26332f";
+  context.fillRect(0, 157, canvas.width, 29);
+  context.fillStyle = "#d5d7c6";
   context.font = "800 14px 'Barlow Condensed', sans-serif";
   context.textAlign = "center";
   context.textBaseline = "middle";
-  context.fillText(number, person.x, person.y + 1);
-  context.strokeStyle = "#ffffffcc";
-  context.lineWidth = 4;
+  context.fillText("ONE ON ONE  •  STREET MATCH", canvas.width / 2, 171);
+  context.fillStyle = "#e9efd9";
+  context.fillRect(28, 22, 7, 114);
+  context.fillRect(canvas.width - 35, 22, 7, 114);
+  context.fillStyle = "#fff6cf";
+  context.shadowColor = "#e7f4d0";
+  context.shadowBlur = 18;
+  context.fillRect(12, 29, 39, 5);
+  context.fillRect(canvas.width - 51, 29, 39, 5);
+  context.shadowBlur = 0;
+}
+
+function drawWorldPolygon(points, fillStyle, strokeStyle = null, lineWidth = 2) {
   context.beginPath();
-  context.moveTo(person.x + facingX * 18, person.y + facingY * 18);
-  context.lineTo(person.x + facingX * 31, person.y + facingY * 31);
+  points.forEach(([x, y], index) => {
+    const point = project(x, y);
+    if (index === 0) context.moveTo(point.x, point.y);
+    else context.lineTo(point.x, point.y);
+  });
+  context.closePath();
+  if (fillStyle) {
+    context.fillStyle = fillStyle;
+    context.fill();
+  }
+  if (strokeStyle) {
+    context.strokeStyle = strokeStyle;
+    context.lineWidth = lineWidth;
+    context.stroke();
+  }
+}
+
+function drawWorldLine(x1, y1, x2, y2, color = "#f0f2d9d9", lineWidth = 2) {
+  const start = project(x1, y1);
+  const end = project(x2, y2);
+  context.beginPath();
+  context.moveTo(start.x, start.y);
+  context.lineTo(end.x, end.y);
+  context.strokeStyle = color;
+  context.lineWidth = lineWidth;
   context.stroke();
+}
+
+function drawWorldRect(left, top, right, bottom, fillStyle = null, strokeStyle = null) {
+  drawWorldPolygon(
+    [[left, top], [right, top], [right, bottom], [left, bottom]],
+    fillStyle,
+    strokeStyle,
+  );
+}
+
+function drawWorldCircle(centerX, centerY, radius) {
+  context.beginPath();
+  for (let index = 0; index <= 64; index += 1) {
+    const angle = (index / 64) * Math.PI * 2;
+    const point = project(centerX + Math.cos(angle) * radius, centerY + Math.sin(angle) * radius);
+    if (index === 0) context.moveTo(point.x, point.y);
+    else context.lineTo(point.x, point.y);
+  }
+  context.closePath();
+  context.stroke();
+}
+
+function drawGoal(x, direction) {
+  const backX = x + direction * 34;
+  drawWorldPolygon(
+    [[x, field.goalTop], [backX, field.goalTop], [backX, field.goalBottom], [x, field.goalBottom]],
+    "#e9eee533",
+    "#f1f3df77",
+    1,
+  );
+  for (let y = field.goalTop + 20; y < field.goalBottom; y += 20) {
+    drawWorldLine(x, y, backX, y, "#f5f6e966", 1);
+  }
+  for (let offset = 10; offset < 34; offset += 10) {
+    drawWorldLine(x + direction * offset, field.goalTop, x + direction * offset, field.goalBottom, "#f5f6e966", 1);
+  }
+
+  const top = project(x, field.goalTop);
+  const bottom = project(x, field.goalBottom);
+  const postHeight = 42;
+  context.strokeStyle = "#f7f5e8";
+  context.lineWidth = 5;
+  context.beginPath();
+  context.moveTo(top.x, top.y);
+  context.lineTo(top.x, top.y - postHeight * top.scale);
+  context.lineTo(bottom.x, bottom.y - postHeight * bottom.scale);
+  context.lineTo(bottom.x, bottom.y);
+  context.stroke();
+  const backTop = project(backX, field.goalTop);
+  context.beginPath();
+  context.moveTo(top.x, top.y - postHeight * top.scale);
+  context.lineTo(backTop.x, backTop.y - postHeight * backTop.scale);
+  context.stroke();
+}
+
+function drawField() {
+  drawStadium();
+  const farLeft = project(field.left, field.top);
+  const farRight = project(field.right, field.top);
+  drawWorldPolygon(
+    [[field.left, field.top], [field.right, field.top], [field.right, field.bottom], [field.left, field.bottom]],
+    "#28743d",
+    "#e9eddb",
+    3,
+  );
+
+  for (let index = 0; index < 10; index += 1) {
+    if (index % 2 === 0) continue;
+    const stripeLeft = field.left + ((field.right - field.left) * index) / 10;
+    const stripeRight = field.left + ((field.right - field.left) * (index + 1)) / 10;
+    drawWorldRect(stripeLeft, field.top, stripeRight, field.bottom, "#ffffff0b");
+  }
+
+  drawWorldLine(field.left, field.top, field.right, field.top);
+  drawWorldLine(field.left, field.bottom, field.right, field.bottom);
+  drawWorldLine(field.left, field.top, field.left, field.bottom);
+  drawWorldLine(field.right, field.top, field.right, field.bottom);
+  drawWorldLine(canvas.width / 2, field.top, canvas.width / 2, field.bottom);
+  context.strokeStyle = "#f0f2d9d9";
+  drawWorldCircle(canvas.width / 2, (field.top + field.bottom) / 2, 76);
+  const center = project(canvas.width / 2, (field.top + field.bottom) / 2);
+  context.fillStyle = "#f0f2d9";
+  context.beginPath();
+  context.arc(center.x, center.y, 3, 0, Math.PI * 2);
+  context.fill();
+  drawWorldRect(field.left, 184, field.left + 110, 396, null, "#f0f2d9d9");
+  drawWorldRect(field.right - 110, 184, field.right, 396, null, "#f0f2d9d9");
+  drawWorldRect(field.left, 230, field.left + 42, 350, null, "#f0f2d9d9");
+  drawWorldRect(field.right - 42, 230, field.right, 350, null, "#f0f2d9d9");
+  drawGoal(field.left, -1);
+  drawGoal(field.right, 1);
+  context.fillStyle = "#e8d8a5";
+  context.font = "700 10px 'Barlow Condensed', sans-serif";
+  context.textAlign = "center";
+  context.fillText("HOME", farLeft.x + 18, farLeft.y - 7);
+  context.fillText("AWAY", farRight.x - 18, farRight.y - 7);
+}
+
+function drawLimb(x1, y1, x2, y2, width, color) {
+  context.beginPath();
+  context.moveTo(x1, y1);
+  context.lineTo(x2, y2);
+  context.lineWidth = width;
+  context.lineCap = "round";
+  context.strokeStyle = color;
+  context.stroke();
+}
+
+function drawPlayer(person, jerseyColor, shortsColor, number) {
+  const ground = project(person.x, person.y);
+  const scale = ground.scale;
+  const direction = person.facingX < 0 ? -1 : 1;
+  const stride = person.moving ? Math.sin(gameTime * 15 + (number === "2" ? 1 : 0)) * 5 * scale : 0;
+  const x = ground.x;
+  const y = ground.y;
+  const height = 66 * scale;
+  const legStartY = y - 22 * scale;
+  const hipX = x - direction * 1.5 * scale;
+  const legSpread = 5 * scale;
+
+  context.save();
+  context.fillStyle = "#07120c88";
+  context.beginPath();
+  context.ellipse(x, y + 3 * scale, 16 * scale, 5 * scale, 0, 0, Math.PI * 2);
+  context.fill();
+
+  drawLimb(hipX - legSpread, legStartY, x - legSpread - stride, y - 2 * scale, 7 * scale, shortsColor);
+  drawLimb(hipX + legSpread, legStartY, x + legSpread + stride, y - 2 * scale, 7 * scale, shortsColor);
+  drawLimb(x - legSpread - stride, y - 2 * scale, x - legSpread - stride + direction * 4 * scale, y, 4 * scale, "#e9e9d8");
+  drawLimb(x + legSpread + stride, y - 2 * scale, x + legSpread + stride + direction * 4 * scale, y, 4 * scale, "#e9e9d8");
+  drawLimb(x - legSpread - stride + direction * 3 * scale, y, x - legSpread - stride + direction * 10 * scale, y, 4 * scale, "#18211e");
+  drawLimb(x + legSpread + stride + direction * 3 * scale, y, x + legSpread + stride + direction * 10 * scale, y, 4 * scale, "#18211e");
+
+  const shoulderY = y - 43 * scale;
+  const armSwing = person.moving ? Math.cos(gameTime * 15) * 4 * scale : 1 * scale;
+  drawLimb(x - direction * 8 * scale, shoulderY, x - direction * 12 * scale, y - 30 * scale + armSwing, 5 * scale, jerseyColor);
+  drawLimb(x + direction * 8 * scale, shoulderY, x + direction * 12 * scale, y - 30 * scale - armSwing, 5 * scale, jerseyColor);
+  drawLimb(x - direction * 12 * scale, y - 30 * scale + armSwing, x - direction * 11 * scale, y - 24 * scale + armSwing, 3.5 * scale, "#d99f79");
+  drawLimb(x + direction * 12 * scale, y - 30 * scale - armSwing, x + direction * 11 * scale, y - 24 * scale - armSwing, 3.5 * scale, "#d99f79");
+
+  context.fillStyle = jerseyColor;
+  context.beginPath();
+  context.moveTo(x - 9 * scale, y - 51 * scale);
+  context.lineTo(x + 9 * scale, y - 51 * scale);
+  context.lineTo(x + 12 * scale, y - 26 * scale);
+  context.lineTo(x - 11 * scale, y - 26 * scale);
+  context.closePath();
+  context.fill();
+  context.fillStyle = "#ffffffb8";
+  context.fillRect(x - 1 * scale, y - 47 * scale, 2 * scale, 17 * scale);
+  context.fillStyle = "#fff7e6";
+  context.font = `800 ${9 * scale}px 'Barlow Condensed', sans-serif`;
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.fillText(number, x, y - 38 * scale);
+
+  context.fillStyle = "#d9a681";
+  context.beginPath();
+  context.ellipse(x, y - height + 10 * scale, 7 * scale, 9 * scale, 0, 0, Math.PI * 2);
+  context.fill();
+  context.fillStyle = "#30251f";
+  context.beginPath();
+  context.ellipse(x - direction * 1.5 * scale, y - height + 4 * scale, 7 * scale, 5 * scale, 0, Math.PI, Math.PI * 2);
+  context.fill();
+  context.fillStyle = "#f4d8bd";
+  context.beginPath();
+  context.moveTo(x + direction * 6 * scale, y - height + 10 * scale);
+  context.lineTo(x + direction * 10 * scale, y - height + 12 * scale);
+  context.lineTo(x + direction * 5 * scale, y - height + 14 * scale);
+  context.fill();
   context.restore();
 }
 
 function drawBall() {
-  context.save();
-  context.shadowColor = "#0008";
-  context.shadowBlur = 7;
-  context.shadowOffsetY = 3;
+  const point = project(ball.x, ball.y);
+  const radius = ball.radius * point.scale;
+  context.fillStyle = "#07120c99";
+  context.beginPath();
+  context.ellipse(point.x, point.y + 2, radius * 1.25, radius * 0.48, 0, 0, Math.PI * 2);
+  context.fill();
   context.fillStyle = "#fffdf1";
   context.beginPath();
-  context.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+  context.arc(point.x, point.y - radius * 0.35, radius, 0, Math.PI * 2);
   context.fill();
-  context.shadowColor = "transparent";
   context.fillStyle = "#26332a";
   context.beginPath();
-  context.arc(ball.x, ball.y, 3.5, 0, Math.PI * 2);
+  context.arc(point.x, point.y - radius * 0.35, radius * 0.34, 0, Math.PI * 2);
   context.fill();
-  context.restore();
 }
 
 function drawOverlay() {
   if (mode === "playing" && goalPause <= 0) return;
   const title = mode === "ready" ? "READY?" : mode === "ended" ? "FULL TIME" : "GOAL!";
   context.fillStyle = "#07110c7a";
-  context.fillRect(field.left, field.top, field.right - field.left, field.bottom - field.top);
+  context.fillRect(0, 184, canvas.width, canvas.height - 184);
   context.fillStyle = "#f8f6e8";
   context.font = "900 54px 'Barlow Condensed', sans-serif";
   context.textAlign = "center";
   context.textBaseline = "middle";
-  context.fillText(title, canvas.width / 2, canvas.height / 2);
+  context.fillText(title, canvas.width / 2, 340);
   if (mode === "ready") {
     context.fillStyle = "#d1e5d0";
     context.font = "700 15px 'Noto Sans JP', sans-serif";
-    context.fillText("キックオフで試合開始", canvas.width / 2, canvas.height / 2 + 42);
+    context.fillText("キックオフで試合開始", canvas.width / 2, 382);
   }
 }
 
 function draw() {
   drawField();
-  drawPlayer(player, "#52d676", "1", player.facingX, player.facingY);
-  drawPlayer(cpu, "#f17856", "2", -1, 0);
-  drawBall();
+  const actors = [
+    { y: player.y, draw: () => drawPlayer(player, "#37ba64", "#176d3f", "1") },
+    { y: cpu.y, draw: () => drawPlayer(cpu, "#e56f4c", "#832f32", "2") },
+    { y: ball.y, draw: drawBall },
+  ];
+  actors.sort((first, second) => first.y - second.y).forEach((actor) => actor.draw());
   drawOverlay();
 }
 
