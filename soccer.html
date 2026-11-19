@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#10241c">
+    <title>ONE ON ONE | 1v1サッカー</title>
+    <link rel="stylesheet" href="soccer.css">
+    <script src="soccer.js" defer></script>
+  </head>
+  <body>
+    <main class="soccer-shell">
+      <header class="soccer-header">
+        <a class="back-link" href="index.html">← 残響の継承者へ</a>
+        <p class="eyebrow">ONE ON ONE 
+          / STREET MATCH</p>
+        <h1>1v1 <span>SOCCER</span></h1>
+        <p class="subtitle">抜いて、決めろ。</p>
+      </header>
+
+      <section class="match-panel" aria-label="サッカーの試合">
+        <div class="scoreboard" aria-label="スコア">
+          <div class="team player-team"><span class="team-color"></span><span>YOU</span><strong id="player-score">0</strong></div>
+          <div class="match-clock"><span>TIME</span><strong id="match-time">60</strong></div>
+          <div class="team cpu-team"><strong id="cpu-score">0</strong><span>CPU</span><span class="team-color"></span></div>
+        </div>
+        <div class="canvas-wrap">
+          <canvas id="soccer-field" width="960" height="580" tabindex="0" aria-label="サッカー場。WASDまたは矢印キーで移動、スペースでシュート">
+            このブラウザーはCanvasに対応していません。
+          </canvas>
+          <p class="canvas-status" id="game-status" aria-live="polite">キックオフを押して試合開始！</p>
+        </div>
+        <div class="match-actions">
+          <p><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / <kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd> 移動 <span>・</span> <kbd>SPACE</kbd> シュート</p>
+          <button type="button" class="kickoff-button" id="kickoff-button">キックオフ！</button>
+        </div>
+      </section>
+
+      <nav class="touch-controls" aria-label="タッチ操作">
+        <div class="direction-pad">
+          <button type="button" data-control="up" aria-label="上へ">▲</button>
+          <button type="button" data-control="left" aria-label="左へ">◀</button>
+          <button type="button" data-control="down" aria-label="下へ">▼</button>
+          <button type="button" data-control="right" aria-label="右へ">▶</button>
+        </div>
+        <button type="button" class="shoot-button" id="shoot-button">シュート！</button>
+      </nav>
+
+      <footer>60秒勝負。相手より多くゴールを決めろ。</footer>
+    </main>
+  </body>
+</html>

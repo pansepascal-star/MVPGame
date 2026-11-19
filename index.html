@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#11131b">
+    <title>残響の継承者 | 具現体バトルRPG</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="game.js" defer></script>
+  </head>
+  <body>
+    <main class="game-shell">
+      <header class="masthead">
+        <div class="brand-mark" aria-hidden="true">R</div>
+        <div class="brand-copy">
+          <p class="eyebrow">ECHOES OF THE WILL <span>— EPISODE 01</span></p>
+          <h1>残響の継承者</h1>
+        </div>
+        <p class="chapter-tag">意志を継ぐ者たち</p>
+      </header>
+
+      <section class="stand-select" aria-labelledby="stand-select-heading">
+        <div class="stand-select-heading">
+          <div>
+            <p class="eyebrow">CHOOSE YOUR ECHO</p>
+            <h2 id="stand-select-heading">契約する具現体を選べ！</h2>
+          </div>
+          <p>選び直すとバトルが最初から始まります</p>
+        </div>
+        <div class="stand-options" id="stand-options">
+          <button type="button" class="stand-option is-selected" data-stand="glass" aria-pressed="true">
+            <span class="stand-preview preview-glass" aria-hidden="true">
+              <span class="mini-halo"></span><span class="mini-head"></span><span class="mini-body"></span><span class="mini-core"></span>
+            </span>
+            <span class="stand-option-copy">
+              <span class="stand-option-type">響 / 均衡型</span>
+              <strong>玻璃の拳士</strong>
+              <small>攻守のバランスに優れた正統派。</small>
+            </span>
+            <span class="stand-check" aria-hidden="true">契約中</span>
+          </button>
+          <button type="button" class="stand-option" data-stand="storm" aria-pressed="false">
+            <span class="stand-preview preview-storm" aria-hidden="true">
+              <span class="mini-halo"></span><span class="mini-head"></span><span class="mini-body"></span><span class="mini-core"></span>
+            </span>
+            <span class="stand-option-copy">
+              <span class="stand-option-type">電 / 俊敏型</span>
+              <strong>雷鎖のヴァルカン</strong>
+              <small>素早い攻めと回避で被ダメージを軽減。</small>
+            </span>
+            <span class="stand-check" aria-hidden="true">契約中</span>
+          </button>
+          <button type="button" class="stand-option" data-stand="star" aria-pressed="false">
+            <span class="stand-preview preview-star" aria-hidden="true">
+              <span class="mini-halo"></span><span class="mini-head"></span><span class="mini-body"></span><span class="mini-core"></span>
+            </span>
+            <span class="stand-option-copy">
+              <span class="stand-option-type">星 / 重撃型</span>
+              <strong>星喰いのアルカ</strong>
+              <small>圧倒的な火力を持つが、被弾には注意。</small>
+            </span>
+            <span class="stand-check" aria-hidden="true">契約中</span>
+          </button>
+        </div>
+      </section>
+
+      <section class="battle-scene" aria-label="具現体バトル">
+        <div class="scene-sky" aria-hidden="true"></div>
+        <div class="scene-horizon" aria-hidden="true"></div>
+        <div class="scene-floor" aria-hidden="true"></div>
+        <div class="scene-speedlines" aria-hidden="true"></div>
+
+        <div class="turn-stamp">
+          <span class="turn-label">BATTLE</span>
+          <span id="battle-turn">TURN 01</span>
+        </div>
+
+        <article class="status-card enemy-status" aria-labelledby="enemy-name">
+          <div class="status-topline"><span class="status-rank">NO. 01 / RIVAL</span><span class="level">LV. 08</span></div>
+          <div class="status-name-line">
+            <div>
+              <p class="status-kind">灰冠の審問官</p>
+              <h2 id="enemy-name">朔夜（さくや）</h2>
+            </div>
+            <span class="type-mark enemy-type">重</span>
+          </div>
+          <p class="avatar-name">具現体 <strong>『虚空の重奏』</strong><span>異能：重圧領域</span></p>
+          <div class="meter-label"><span>HP</span><span id="enemy-hp-text">110 / 110</span></div>
+          <div class="meter" role="progressbar" aria-label="敵の体力" aria-valuemin="0" aria-valuemax="110" aria-valuenow="110">
+            <span id="enemy-hp-bar" class="meter-fill enemy-hp-fill"></span>
+          </div>
+          <div class="intent" id="enemy-intent" aria-live="polite">敵の動きを読んでいる…</div>
+        </article>
+
+        <div class="avatar enemy-avatar" id="enemy-avatar" role="img" aria-label="虚空の重奏。暗い装甲と浮遊する環をまとう具現体">
+          <svg class="avatar-art enemy-art" viewBox="0 0 280 340" aria-hidden="true">
+            <defs>
+              <linearGradient id="enemyArmor" x1="0" x2="1" y1="0" y2="1">
+                <stop offset="0" stop-color="#f2bc77"/>
+                <stop offset=".42" stop-color="#a95b65"/>
+                <stop offset="1" stop-color="#392a49"/>
+              </linearGradient>
+              <linearGradient id="enemyCloak" x1="0" x2="1">
+                <stop stop-color="#28243c"/>
+                <stop offset=".5" stop-color="#744158"/>
+                <stop offset="1" stop-color="#252238"/>
+              </linearGradient>
+              <radialGradient id="enemyCore">
+                <stop stop-color="#ff9b92"/>
+                <stop offset="1" stop-color="#f14c7a" stop-opacity=".05"/>
+              </radialGradient>
+            </defs>
+            <ellipse cx="145" cy="176" rx="111" ry="134" fill="url(#enemyCore)" opacity=".6"/>
+            <g class="halo-ring" fill="none" stroke="#f4c27e" stroke-width="5">
+              <ellipse cx="147" cy="94" rx="88" ry="30" transform="rotate(-27 147 94)" opacity=".85"/>
+              <path d="M66 62l-8-12m145 27 13-7m-93 54 3 14" stroke-width="3"/>
+            </g>
+            <path d="M83 171 49 252l43-20 1 77 44-35 42 39 5-80 42 18-31-91-55-27z" fill="url(#enemyCloak)" stroke="#d78986" stroke-width="3"/>
+            <path d="m93 160-39 14-25 45 21 9 44-30m92-31 45 6 24 40-20 12-51-26" fill="url(#enemyArmor)" stroke="#f3bd83" stroke-width="4" stroke-linejoin="round"/>
+            <path d="m107 130 31-20 37 19 14 52-28 43-46-7-25-40z" fill="url(#enemyArmor)" stroke="#f4d0a1" stroke-width="4" stroke-linejoin="round"/>
+            <path d="m126 145 13-11 13 11-2 23-11 13-12-13z" fill="#211e34" stroke="#ffd99d" stroke-width="3"/>
+            <path d="m131 159 8-5 8 5-8 7z" fill="#ff6386" filter="drop-shadow(0 0 7px #ff6386)"/>
+            <path d="m108 121-4-31 23 19m32 3 22-24-2 37" fill="#4a3048" stroke="#f0bd83" stroke-width="5" stroke-linejoin="round"/>
+            <circle cx="142" cy="235" r="20" fill="#33233e" stroke="#ffc37b" stroke-width="4"/>
+            <circle cx="142" cy="235" r="9" fill="#f46a87"/>
+            <path d="m105 211-27 17 20 9m72-24 28 16-18 12" fill="none" stroke="#f4bd83" stroke-width="5" stroke-linecap="round"/>
+            <path d="m94 300 18 2m64 5 17 2" stroke="#ff98a8" stroke-width="5" stroke-linecap="round"/>
+            <g fill="#ffd385">
+              <path d="m45 131 5 12 12 5-12 5-5 12-5-12-12-5 12-5z"/>
+              <path d="m228 108 4 9 9 4-9 4-4 9-4-9-9-4 9-4z"/>
+            </g>
+          </svg>
+        </div>
+
+        <div class="clash-mark" aria-hidden="true"><span>VS</span></div>
+
+        <div class="avatar player-avatar" id="player-avatar" role="img" aria-label="玻璃の拳士。白と青緑の装甲をまとう具現体">
+          <svg class="avatar-art player-art" viewBox="0 0 280 340" aria-hidden="true">
+            <defs>
+              <linearGradient id="playerArmor" x1="0" x2="1" y1="0" y2="1">
+                <stop stop-color="#e4fff0"/>
+                <stop offset=".42" stop-color="#78d8c7"/>
+                <stop offset="1" stop-color="#268b91"/>
+              </linearGradient>
+              <linearGradient id="playerDark" x1="0" x2="1">
+                <stop stop-color="#173a50"/>
+                <stop offset=".5" stop-color="#255b68"/>
+                <stop offset="1" stop-color="#152a46"/>
+              </linearGradient>
+              <radialGradient id="playerCore">
+                <stop stop-color="#9bffe5"/>
+                <stop offset="1" stop-color="#44dabe" stop-opacity=".02"/>
+              </radialGradient>
+            </defs>
+            <ellipse cx="139" cy="184" rx="115" ry="145" fill="url(#playerCore)" opacity=".7"/>
+            <path d="m75 102-23-40 42 19 18-51 26 43 41-35-8 55 38 6-37 34-82 2z" fill="#d9fff0" stroke="#6de0d1" stroke-width="4" stroke-linejoin="round"/>
+            <path d="m102 123 37-22 39 20 13 52-28 49-53-4-26-44z" fill="url(#playerArmor)" stroke="#dcfff0" stroke-width="4" stroke-linejoin="round"/>
+            <path d="m113 134 14-10 13 8 13-8 14 10-10 19-16 7-18-7z" fill="#163a4e" stroke="#baf8df" stroke-width="3"/>
+            <path d="m120 143 11-4 8 5-12 4m20-5 8-5 11 4-7 5" fill="#fff3bd"/>
+            <path d="m88 152-30 6-25 43 16 17 45-24m100-42 31 5 28 39-16 18-46-19" fill="url(#playerArmor)" stroke="#d8ffeb" stroke-width="5" stroke-linejoin="round"/>
+            <path d="m102 211-15 58 18 49 29-19 8-50 13 50 31 18 16-49-20-58z" fill="url(#playerDark)" stroke="#78e6d3" stroke-width="4" stroke-linejoin="round"/>
+            <path d="m105 301-9 20 35 1 4-22m33 1 7 21 34 3-10-25" fill="#d0fff0" stroke="#62d7c6" stroke-width="4" stroke-linejoin="round"/>
+            <path d="m122 184 18 9 18-9 4 22-22 19-22-19z" fill="#18374a" stroke="#e9fff0" stroke-width="3"/>
+            <path d="m139 194 9 12-9 10-8-10z" fill="#ffcf77"/>
+            <path d="m56 192-18 11 14 14m166-24 19 11-13 15" fill="none" stroke="#eaffef" stroke-width="5" stroke-linecap="round"/>
+            <circle cx="53" cy="222" r="19" fill="#d2fff0" stroke="#54cbbb" stroke-width="4"/>
+            <circle cx="225" cy="222" r="19" fill="#d2fff0" stroke="#54cbbb" stroke-width="4"/>
+            <g fill="#b9fff0">
+              <path d="m37 94 5 12 12 5-12 5-5 12-5-12-12-5 12-5z"/>
+              <path d="m228 75 4 9 9 4-9 4-4 9-4-9-9-4 9-4z"/>
+              <path d="m229 273 3 8 8 3-8 3-3 8-3-8-8-3 8-3z"/>
+            </g>
+            <g class="stand-trait trait-storm" fill="none" stroke="#d7f6ff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m52 90 18 11-13 13 20 9-17 16"/>
+              <path d="m225 126-17 10 14 13-19 10 16 15"/>
+              <path d="m47 237 15-8-8-12 17-8"/>
+            </g>
+            <g class="stand-trait trait-star" fill="none" stroke="#ffe0a0" stroke-width="4">
+              <ellipse cx="141" cy="184" rx="120" ry="47" transform="rotate(-24 141 184)"/>
+              <path d="m140 40 7 19 20 1-16 12 6 19-17-11-16 12 5-20-16-11 20-1z" fill="#ffb965" stroke="#fff0bc" stroke-width="2"/>
+            </g>
+          </svg>
+        </div>
+
+        <article class="status-card player-status" aria-labelledby="player-name">
+          <div class="status-topline"><span class="status-rank">NO. 00 / CHALLENGER</span><span class="level">LV. 07</span></div>
+          <div class="status-name-line">
+            <div>
+              <p class="status-kind">継承者</p>
+              <h2 id="player-name">朝霧 レン</h2>
+            </div>
+            <span class="type-mark player-type" id="player-stand-type">響</span>
+          </div>
+          <p class="avatar-name">具現体 <strong id="player-stand-name">『玻璃の拳士』</strong><span id="player-stand-ability">異能：意志を拳に刻む</span></p>
+          <div class="meter-label"><span>HP</span><span id="player-hp-text">100 / 100</span></div>
+          <div class="meter" role="progressbar" aria-label="プレイヤーの体力" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">
+            <span id="player-hp-bar" class="meter-fill hp-fill"></span>
+          </div>
+          <div class="energy-row">
+            <span>共鳴エネルギー</span><span id="energy-text">2 / 5</span>
+            <div class="energy-pips" id="energy-pips" aria-label="エネルギー 2 / 5"></div>
+          </div>
+        </article>
+
+        <div class="battle-message" id="battle-message" aria-live="polite">灰冠の審問官が行く手を阻む。具現体を呼び出せ！</div>
+      </section>
+
+      <section class="command-panel" aria-labelledby="battle-heading">
+        <div class="command-intro">
+          <div>
+            <p class="eyebrow">COMMAND / 01</p>
+            <h2 id="battle-heading">次の一手を選べ！</h2>
+          </div>
+          <button type="button" class="restart-button" id="restart-button">戦い直す ↻</button>
+        </div>
+        <div class="actions" id="actions">
+          <button type="button" class="action-button" data-action="strike">
+            <span class="action-key">01</span>
+            <span class="action-copy"><strong id="strike-name">砕晶連打</strong><small id="strike-description">拳の連打で攻め、共鳴 +1</small></span>
+            <span class="action-cost">共鳴 +1</span>
+          </button>
+          <button type="button" class="action-button special-action" data-action="special">
+            <span class="action-key">02</span>
+            <span class="action-copy"><strong id="special-name">硝子星穿ち</strong><small id="special-description">意志を一点に集中した必殺技</small></span>
+            <span class="action-cost">共鳴 2</span>
+          </button>
+          <button type="button" class="action-button" data-action="guard">
+            <span class="action-key">03</span>
+            <span class="action-copy"><strong>受け流す</strong><small>構えをとり次の攻撃を軽減</small></span>
+            <span class="action-cost">防御</span>
+          </button>
+          <button type="button" class="action-button" data-action="focus">
+            <span class="action-key">04</span>
+            <span class="action-copy"><strong>精神統一</strong><small>呼吸を整え力を取り戻す</small></span>
+            <span class="action-cost">共鳴 +2</span>
+          </button>
+        </div>
+      </section>
+
+      <footer><span>意志は、形を得る。</span><a class="game-switch" href="soccer.html">1v1サッカーをプレイ →</a><span>© ECHOES OF THE WILL</span></footer>
+    </main>
+  </body>
+</html>
