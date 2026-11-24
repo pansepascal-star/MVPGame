@@ -10,13 +10,21 @@ const shootButton = document.querySelector("#shoot-button");
 const field = { left: 42, right: 918, top: 42, bottom: 538, goalTop: 220, goalBottom: 360 };
 const keys = new Set();
 const player = {
-  x: 420, y: 290, radius: 20, speed: 285,
+  x: 420, y: 290, radius: 20, speed: 280,
   facingX: 1, facingY: 0, moving: false, tackleCooldown: 0,
 };
 const cpu = {
-  x: 540, y: 290, radius: 20, speed: 235,
+  x: 540, y: 290, radius: 20, speed: 280,
   facingX: -1, facingY: 0, moving: false, tackleCooldown: 0,
   shotCooldown: 0, thinkCooldown: 0, targetX: 540, targetY: 290,
+};
+const playerDefender = {
+  x: 112, y: 290, radius: 20, speed: 45,
+  facingX: 1, facingY: 0, moving: false,
+};
+const cpuDefender = {
+  x: 848, y: 290, radius: 20, speed: 45,
+  facingX: -1, facingY: 0, moving: false,
 };
 const ball = { x: 480, y: 290, radius: 10, vx: 0, vy: 0 };
 
@@ -26,6 +34,7 @@ let timeLeft = 60;
 let mode = "ready";
 let holder = null;
 let goalPause = 0;
+let ballPickupDelay = 0;
 let previousFrame = 0;
 let gameTime = 0;
 
@@ -63,16 +72,28 @@ function resetPositions() {
   cpu.facingX = -1;
   cpu.facingY = 0;
   cpu.moving = false;
-  cpu.tackleCooldown = 0;
+  cpu.tackleCooldown = 0.9;
   cpu.shotCooldown = 0.65;
   cpu.thinkCooldown = 0;
   cpu.targetX = cpu.x;
   cpu.targetY = cpu.y;
+  playerDefender.x = 112;
+  playerDefender.y = 290;
+  playerDefender.facingX = 1;
+  playerDefender.facingY = 0;
+  playerDefender.moving = false;
+  cpuDefender.x = 848;
+  cpuDefender.y = 290;
+  cpuDefender.facingX = -1;
+  cpuDefender.facingY = 0;
+  cpuDefender.moving = false;
   ball.x = 480;
   ball.y = 290;
   ball.vx = 0;
   ball.vy = 0;
-  setHolder(null);
+  ballPickupDelay = 0;
+  setHolder("player");
+  syncHeldBall(player);
 }
 
 function resetMatch() {
@@ -140,7 +161,7 @@ function movePlayer(dt) {
   if (!length) return;
   const moveX = dx / length;
   const moveY = dy / length;
-  const speed = holder === "player" ? player.speed * 0.94 : player.speed;
+  const speed = holder === "player" ? player.speed * 0.84 : player.speed;
   player.x = clamp(player.x + moveX * speed * dt, field.left + player.radius, field.right - player.radius);
   player.y = clamp(player.y + moveY * speed * dt, field.top + player.radius, field.bottom - player.radius);
   player.facingX = moveX;
@@ -180,7 +201,7 @@ function chooseShotTargetY(shooter, defender, goalX) {
 function shoot() {
   if (mode !== "playing" || goalPause > 0) return;
   if (holder !== "player") {
-    if (distanceBetween(player, ball) > player.radius + ball.radius + 24) {
+    if (distanceBetween(player, ball) > player.radius + ball.radius + 42) {
       setStatus("ボールに近づくと自動でキープできます！");
       return;
     }
@@ -196,6 +217,7 @@ function shoot() {
   const dy = targetY - ball.y;
   const length = Math.hypot(dx, dy) || 1;
   setHolder(null);
+  ballPickupDelay = 0.22;
   ball.vx = (dx / length) * 690 + player.facingX * 28;
   ball.vy = (dy / length) * 690 + player.facingY * 28;
   setStatus("シュート！");
@@ -214,6 +236,7 @@ function shootForCpu() {
   const dy = targetY - ball.y;
   const length = Math.hypot(dx, dy) || 1;
   setHolder(null);
+  ballPickupDelay = 0.22;
   ball.vx = (dx / length) * 590;
   ball.vy = (dy / length) * 590;
   cpu.shotCooldown = 1.15;
@@ -267,14 +290,30 @@ function moveCpu(dt) {
 
   if (holder === "player" && cpu.tackleCooldown === 0 && distanceBetween(cpu, player) < 43) {
     setHolder("cpu");
+    player.tackleCooldown = 0.75;
     cpu.tackleCooldown = 1.35;
+    cpu.shotCooldown = Math.max(cpu.shotCooldown, 0.55);
     cpu.thinkCooldown = 0;
     setStatus("CPUにボールを奪われた！");
   }
 }
 
+function moveDefenders(dt) {
+  const centerY = (field.goalTop + field.goalBottom) / 2;
+  const playerTargetY = ball.x < field.left + 170
+    ? clamp(ball.y, field.goalTop + 20, field.goalBottom - 20)
+    : centerY;
+  const cpuTargetY = ball.x > field.right - 170
+    ? clamp(ball.y, field.goalTop + 20, field.goalBottom - 20)
+    : centerY;
+  moveToward(playerDefender, playerDefender.x, playerTargetY, dt);
+  moveToward(cpuDefender, cpuDefender.x, cpuTargetY, dt);
+  playerDefender.facingX = 1;
+  cpuDefender.facingX = -1;
+}
+
 function acquireLooseBall() {
-  if (holder !== null) return;
+  if (holder !== null || ballPickupDelay > 0) return;
   const playerDistance = distanceBetween(player, ball);
   const cpuDistance = distanceBetween(cpu, ball);
   const pickupDistance = player.radius + ball.radius + 22;
@@ -328,6 +367,8 @@ function scoreGoal(forPlayer) {
 
 function updateBall(dt) {
   if (holder !== null) return;
+  const previousX = ball.x;
+  const previousY = ball.y;
   ball.x += ball.vx * dt;
   ball.y += ball.vy * dt;
   const friction = 0.986 ** (dt * 60);
@@ -342,14 +383,38 @@ function updateBall(dt) {
     ball.vy = -Math.abs(ball.vy) * 0.72;
   }
 
-  const insideGoalMouth = ball.y - ball.radius > field.goalTop && ball.y + ball.radius < field.goalBottom;
-  if (insideGoalMouth && ball.x - ball.radius < field.left) {
-    if (ball.x < field.left - 22) scoreGoal(false);
-    return;
+  for (const defender of [playerDefender, cpuDefender]) {
+    const distance = segmentDistance(
+      { x: defender.x, y: defender.y },
+      { x: previousX, y: previousY },
+      { x: ball.x, y: ball.y },
+    );
+    if (distance <= defender.radius + ball.radius) {
+      const direction = ball.x >= defender.x ? 1 : -1;
+      ball.x = defender.x + direction * (defender.radius + ball.radius + 1);
+      ball.vx = -Math.sign(ball.vx || direction) * Math.max(Math.abs(ball.vx) * 0.62, 180);
+      ball.vy += clamp((ball.y - defender.y) * 2, -180, 180);
+      setStatus("ディフェンダーにブロックされた！");
+      return;
+    }
   }
-  if (insideGoalMouth && ball.x + ball.radius > field.right) {
-    if (ball.x > field.right + 22) scoreGoal(true);
-    return;
+
+  const rightGoalLine = field.right - ball.radius;
+  const leftGoalLine = field.left + ball.radius;
+  if (ball.x > rightGoalLine && previousX <= rightGoalLine) {
+    const crossing = (rightGoalLine - previousX) / (ball.x - previousX);
+    const crossingY = previousY + (ball.y - previousY) * crossing;
+    if (crossingY > field.goalTop + ball.radius && crossingY < field.goalBottom - ball.radius) {
+      scoreGoal(true);
+      return;
+    }
+  } else if (ball.x < leftGoalLine && previousX >= leftGoalLine) {
+    const crossing = (leftGoalLine - previousX) / (ball.x - previousX);
+    const crossingY = previousY + (ball.y - previousY) * crossing;
+    if (crossingY > field.goalTop + ball.radius && crossingY < field.goalBottom - ball.radius) {
+      scoreGoal(false);
+      return;
+    }
   }
   if (ball.x - ball.radius < field.left || ball.x + ball.radius > field.right) {
     ball.x = clamp(ball.x, field.left + ball.radius, field.right - ball.radius);
@@ -359,6 +424,7 @@ function updateBall(dt) {
 
 function update(dt) {
   gameTime += dt;
+  ballPickupDelay = Math.max(0, ballPickupDelay - dt);
   if (mode === "goalPause") {
     goalPause -= dt;
     if (goalPause <= 0) {
@@ -380,6 +446,7 @@ function update(dt) {
   player.tackleCooldown = Math.max(0, player.tackleCooldown - dt);
   movePlayer(dt);
   moveCpu(dt);
+  moveDefenders(dt);
   tryPlayerTackle();
   if (holder === "player") syncHeldBall(player);
   else if (holder === "cpu") syncHeldBall(cpu);
@@ -691,6 +758,8 @@ function draw() {
   const actors = [
     { y: player.y, draw: () => drawPlayer(player, "#37ba64", "#176d3f", "1") },
     { y: cpu.y, draw: () => drawPlayer(cpu, "#e56f4c", "#832f32", "2") },
+    { y: playerDefender.y, draw: () => drawPlayer(playerDefender, "#37ba64", "#176d3f", "3") },
+    { y: cpuDefender.y, draw: () => drawPlayer(cpuDefender, "#e56f4c", "#832f32", "4") },
     { y: ball.y, draw: drawBall },
   ];
   actors.sort((first, second) => first.y - second.y).forEach((actor) => actor.draw());
@@ -713,16 +782,22 @@ const keyMap = {
   ArrowRight: "right", KeyD: "right",
 };
 
-window.addEventListener("keydown", (event) => {
+document.addEventListener("keydown", (event) => {
   const direction = keyMap[event.code];
   if (direction) {
     event.preventDefault();
     keys.add(direction);
-  } else if (event.code === "Space") {
+  } else if (
+    event.code === "Space"
+    || event.key === " "
+    || event.key === "Space"
+    || event.key === "Spacebar"
+    || event.keyCode === 32
+  ) {
     event.preventDefault();
     if (!event.repeat) shoot();
   }
-});
+}, true);
 
 window.addEventListener("keyup", (event) => {
   const direction = keyMap[event.code];
