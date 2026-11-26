@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#10241c">
-    <title>ONE ON ONE | 1v1サッカー</title>
+    <title>TWO ON TWO | 2v2サッカー</title>
     <link rel="stylesheet" href="soccer.css">
     <script src="soccer.js" defer></script>
   </head>
@@ -12,9 +12,11 @@
     <main class="soccer-shell">
       <header class="soccer-header">
         <a class="back-link" href="index.html">← 残響の継承者へ</a>
-        <p class="eyebrow">ONE ON ONE / STREET MATCH</p>
-        <h1>1v1 <span>SOCCER</span></h1>
-        <p class="subtitle">抜いて、決めろ。</p>
+        <p class="eyebrow">TWO ON TWO / STREET MATCH</p>
+
+
+        <h1>2v2 <span>SOCCER</span></h1>
+        <p class="subtitle">パスをつないで、決めろ。</p>
       </header>
 
       <section class="match-panel" aria-label="サッカーの試合">
@@ -27,14 +29,19 @@
           </div>
           <div class="team cpu-team"><strong id="cpu-score">0</strong><span>CPU</span><span class="team-color"></span></div>
         </div>
+        <div class="audio-controls" aria-label="音声設定">
+          <button type="button" class="audio-toggle" id="music-toggle" aria-pressed="true">BGM ON</button>
+          <button type="button" class="audio-toggle" id="sound-toggle" aria-pressed="true">効果音 ON</button>
+          <button type="button" class="audio-toggle" id="crowd-toggle" aria-pressed="true">観客 ON</button>
+        </div>
         <div class="canvas-wrap">
-          <canvas id="soccer-field" width="960" height="580" tabindex="0" aria-label="サイド視点のサッカー場。WASDまたは矢印キーで移動し、ボールをキープしてスペースでシュート">
+          <canvas id="soccer-field" width="960" height="580" tabindex="0" aria-label="サイド視点の2対2サッカー場。黄色いマーカーの選手を操作し、WASDまたは矢印キーで移動、Eキーでパス、スペースキーでシュート">
             このブラウザーはCanvasに対応していません。
           </canvas>
           <p class="canvas-status" id="game-status" aria-live="polite">キックオフを押して試合開始！</p>
         </div>
         <div class="match-actions">
-          <p><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / <kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd> 移動・奥手前 <span>・</span> 接近で自動ドリブル <span>・</span> <kbd>SPACE</kbd> シュート</p>
+          <p>マーカーの選手を操作 <span>・</span> 味方が自動サポート <span>・</span> 接触を続けて奪取 <span>・</span> 接近でドリブル <span>・</span> <kbd>E</kbd> パス <span>・</span> <kbd>SPACE</kbd> シュート <span>・</span> WASD / 矢印で移動</p>
           <button type="button" class="kickoff-button" id="kickoff-button">キックオフ！</button>
         </div>
       </section>
@@ -46,10 +53,13 @@
           <button type="button" data-control="down" aria-label="下へ">▼</button>
           <button type="button" data-control="right" aria-label="右へ">▶</button>
         </div>
-        <button type="button" class="shoot-button" id="shoot-button">シュート！</button>
+        <div class="touch-actions">
+          <button type="button" class="pass-button" id="pass-button">パス</button>
+          <button type="button" class="shoot-button" id="shoot-button">シュート！</button>
+        </div>
       </nav>
 
-      <footer>60秒勝負。相手より多くゴールを決めろ。</footer>
+      <footer>味方とパスをつなぎ、60秒で相手より多くゴールを決めろ。</footer>
     </main>
   </body>
 </html>
